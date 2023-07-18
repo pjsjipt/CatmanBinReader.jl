@@ -1,10 +1,15 @@
-
 struct CatmanChannelInfo
+    "Channel index"
     num::Int16
+    "Number of samples in the channel"
     length::Int32
+    "Channel name"
     name::String
+    "Channel data unit"
     unit::String
+    "Channel comment"
     comment::String
+    "Channel format"
     format::Int16
     dw::Int16
     time::Float64
@@ -18,6 +23,11 @@ struct CatmanChannelInfo
     precision::Int
 end
 
+"""
+`CatmanChannelInfo(io)`
+
+Reads and stores Catman channel info.
+"""
 function CatmanChannelInfo(io)
 
     num = read(io, Int16)

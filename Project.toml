@@ -3,6 +3,9 @@ uuid = "74232cc1-04ff-4b28-a0d2-dd56735f3e24"
 authors = ["Paulo José Saiz Jabardo"]
 version = "1.0.0-DEV"
 
+[deps]
+DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
+
 [compat]
 julia = "1"
 

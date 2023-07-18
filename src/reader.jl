@@ -15,6 +15,7 @@ end
 struct CatmanReader{D}
     header::CatmanHeader
     data::D
+    groups::Vector{Vector{Int}}
 end
 
 function CatmanReader(io::IO)
@@ -22,10 +23,11 @@ function CatmanReader(io::IO)
     seek(io, 0)
     seek(io, header.data_offset)
     data = [read_catman_channel_data(io, chan) for chan in header.chans]
-
-    return CatmanReader(header, data)
+    groups = get_catman_groups(header)
+    return CatmanReader(header, data, groups)
 end
-   
+
+
 CatmanReader(fname::AbstractString) = open(fname, "r") do io
     CatmanReader(io)
 end
@@ -43,13 +45,14 @@ function Base.show(io::IO, cat::CatmanReader)
     
 end
 
+Base.getindex(cat::CatmanReader, i) = cat.data[i]
+numchans(cat::CatmanReader) = cat.header.nchans
+channames(cat::CatmanReader) = [ch.name for ch in cat.header.chans]
+numgroups(cat::CatmanReader) = length(cat.groups)
     
-function get_catman_groups(cat::CatmanReader{D}) where {D}
-    header = cat.header
+function get_catman_groups(header)
 
-    chan_group = Dict{Int,Vector{Int}}()
-
-    found_time_chan = false
+    chan_group = OrderedDict{Int,Vector{Int}}()
     for (i,chan) in enumerate(header.chans)
         if chan.length ∈ keys(chan_group)
             push!(chan_group[chan.length], i)
@@ -57,7 +60,12 @@ function get_catman_groups(cat::CatmanReader{D}) where {D}
             chan_group[chan.length] = [i]
         end
     end
-    return chan_group
+    groups = Vector{Int}[]
+    for (k,idxs) in chan_group
+        push!(groups, idxs)
+    end
+    
+    return groups
 end
 
 function get_catman_group_time(grp, chans; name=r"([T|t]ime)|([Z|z]eit)", unit="s")
@@ -80,39 +88,44 @@ function get_catman_group_time(grp, chans; name=r"([T|t]ime)|([Z|z]eit)", unit="
         error("No channel with name $name found!")
     end
     
-    
 end
 
-function get_catman_group(grp::AbstractVector{<:Integer}, idx_time, cat::CatmanReader, ::Type{T}=Float64) where {T}
-
+function cmgroup(cat::CatmanReader, igrp=1, ::Type{T}=Float64) where {T}
+    grp = cat.groups[igrp]
     nchans = length(grp)
-    t = cat.data[idx_time][2]
-    Nt = length(t)
+    Nt = length(cat.data[grp[1]][2])
+    
     X = zeros(T, Nt, nchans)
 
-    names = [strip(ch.name) for ch in cat.header.chans[grp]]
-    units = [strip(ch.unit) for ch in cat.header.chans[grp]]
     
     for (i,ichan) in enumerate(grp)
         X[:,i] .= T.(cat.data[ichan][2])
     end
-
-    return t, X, names, units
+    return X
     
 end
 
-function splitgroups(cat::CatmanReader, ::Type{T}=Float64;
-                     name=r"([T|t]ime)|([Z|z]eit)", unit="s") where {T}
-    grps = get_catman_groups(cat)
+function cmgroupnames(cat::CatmanReader, igrp=1)
+    return [strip(cat.header.chans[i].name) for i in cat.groups[igrp]]
+end
 
-    idx_time = Dict{Int,Int}()
+function cmgroupunits(cat::CatmanReader, igrp=1)
+    return [strip(cat.header.chans[i].unit) for i in cat.groups[igrp]]
+end
 
-    for (len,gr) in grps
-        idx_time[len] = get_catman_group_time(gr, cat.header.chans;
-                                              name=name, unit=unit)
-    end
-    return [get_catman_group(grps[len], idx_time[len], cat, T)
-            for len in keys(grps)]
+function samplingrate(cat::CatmanReader, igrp=1)
+    return cat.data[cat.groups[igrp][end]][1]
+end    
+
+function cmgrouptimes(cat::CatmanReader, igrp=1;
+                         name=r"([T|t]ime)|([Z|z]eit)", unit="s")
+
+    grp = cat.groups[igrp]
+
+    itime = get_catman_group_time(grp, cat.header.chans; name=name, unit=unit)
+
+    return cat.data[itime][2]
+
 end
 
     
